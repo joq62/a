@@ -83,7 +83,7 @@ heart_beat(Interval)->
 %% --------------------------------------------------------------------
 init([]) ->
     
-    spawn(fun()->h_beat(?HB_INTERVAL) end),
+ %   spawn(fun()->h_beat(?HB_INTERVAL) end),
 	
     {ok, #state{tcp_servers=[]}}.   
     

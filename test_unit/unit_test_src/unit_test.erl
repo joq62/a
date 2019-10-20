@@ -29,8 +29,8 @@
 -define(TEST_OBJ_ERROR,[{adder_service,unit_test_adder_service},
 			{glurk,test_glurk}]).
 -define(TEST_OBJ,[ {lib_service,unit_test_lib_service},
-		   {adder_service,unit_test_adder_service},
-		   {test_nodes,unit_test_nodes}
+		   {lib_service,unit_test_tcp_lib_service},
+		   {adder_service,unit_test_adder_service}
 		 ]).
 
 -ifdef(error_test).
@@ -48,7 +48,7 @@ start()->
     io:format("***************************    Unit test result     ***********************~n~n"),
     case Error of
 	[]->
-	    io:format("OK Unit test Passed ~n~n");
+	    io:format("OK Unit test Passed ~p~n~n",[R]);
 	Error->
 	    io:format("ERROR Unit test failed = ~p~n~n",[Error])
     end,
