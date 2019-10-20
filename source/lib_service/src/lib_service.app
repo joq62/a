@@ -2,9 +2,10 @@
 %% application.
 {application, lib_service,
 [{description, "lib_service  " },
-{vsn, "1.0.0" },
+{vsn, "0.0.95" },
 {modules, 
-	  [lib_service_app,lib_service_sup,lib_service,tcp_client,tcp_server]},
+	  [lib_service_app,lib_service_sup,lib_service,
+	   misc_lib,pod,container]},
 {registered,[lib_service]},
 {applications, [kernel,stdlib]},
 {mod, {lib_service_app,[]}},

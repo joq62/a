@@ -28,8 +28,10 @@
 %% --------------------------------------------------------------------
 -define(TEST_OBJ_ERROR,[{adder_service,unit_test_adder_service},
 			{glurk,test_glurk}]).
--define(TEST_OBJ,[{adder_service,unit_test_adder_service},
-		  {test_nodes,unit_test_nodes}]).
+-define(TEST_OBJ,[ {lib_service,unit_test_lib_service},
+		   {adder_service,unit_test_adder_service},
+		   {test_nodes,unit_test_nodes}
+		 ]).
 
 -ifdef(error_test).
 -define(TEST_CALL,[{test_case,Service,rpc:call(node(),UnitTestCode,test,[],5000)}
