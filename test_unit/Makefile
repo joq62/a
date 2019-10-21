@@ -18,5 +18,3 @@ error:
 	erlc -Derror_test -o test_ebin ../source/*/test_src/*.erl;
 	erlc -Derror_test -o test_ebin unit_test_src/*.erl;
 	erl -pa ebin -pa test_ebin -s unit_test start -sname unit_test
-server_tcp:
-	erl -pa ebin -sname test_tcp_server

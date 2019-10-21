@@ -42,10 +42,23 @@
 -endif.
 
 start()->
+    %% set up test 
     os:cmd("erl -pa ebin -sname test_tcp_server -detached"),
-    do_test(150).
+    timer:sleep(200),
+    start_service('board_m1@asus',"pod_node_controller_m1",["lib_service","node_controller_service"]),
+    start_service('board_m2@asus',"pod_node_controller_m2",["lib_service","node_controller_service"]),
+    start_service('board_w1@asus',"pod_node_controller_w1",["lib_service","node_controller_service"]),
+    start_service('board_w2@asus',"pod_node_controller_w2",["lib_service","node_controller_service"]),
+    start_service('board_w3@asus',"pod_node_controller_w3",["lib_service","node_controller_service"]),
+    do_test(2).
 
 do_test(0)->
+    ListOfServices=["lib_service","node_controller_service"],
+    stop_service('board_m1@asus',"pod_node_controller_m1",ListOfServices),
+    stop_service('board_m2@asus',"pod_node_controller_m2",ListOfServices),
+    stop_service('board_w1@asus',"pod_node_controller_w1",ListOfServices),
+    stop_service('board_w2@asus',"pod_node_controller_w2",ListOfServices),
+    stop_service('board_w3@asus',"pod_node_controller_w3",ListOfServices),
     init:stop();
 do_test(N)->
     io:format("N = ~p~n",[N]),
@@ -62,3 +75,16 @@ do_test(N)->
    % ok.
     os:cmd("erl -pa ebin -sname test_tcp_server -detached"),
     do_test(N-1).
+
+
+%----------------------------------------------
+start_service(Node,PodId,ListOfServices)->
+    {ok,Pod}=pod:create(Node,PodId),
+    ok=container:create(Pod,PodId,ListOfServices).
+    
+stop_service(Node,PodId,ListOfServices)->
+    {ok,Host}=rpc:call(Node,inet,gethostname,[]),
+    PodIdServer=PodId++"@"++Host,
+    Pod=list_to_atom(PodIdServer),
+    container:delete(Pod,PodId,ListOfServices),
+    {ok,stopped}=pod:delete(Node,PodId).
