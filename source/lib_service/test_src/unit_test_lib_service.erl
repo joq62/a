@@ -28,6 +28,11 @@
 %% --------------------------------------------------------------------
 init_test()->
  %   ok=application:start(lib_service),
+    Pod=misc_lib:get_node_by_id("pod_adder_1"),
+    container:delete(Pod,"pod_adder_1",["adder_service"]),
+    pod:delete(node(),"pod_adder_1"),
+    container:delete(Pod,"pod_adder_2",["adder_service"]),
+    pod:delete(node(),"pod_adder_2"),
     ok.
 
 %**************************** tcp test   ****************************
@@ -36,12 +41,12 @@ init_test()->
 %-----------------------------------------------------------------------------
 start_container_1_test()->
     {ok,PodAdder}=pod:create(node(),"pod_adder_1"),
-    ok=container:create(PodAdder,"pod_adder_1",["adder_service"]),
+    ok=container:create(PodAdder,"pod_adder_1",[{"adder_service",[]}]),
    ok.
 
-start_container_2_test()->
+start_container_2_test_xx()->
     {ok,PodAdder}=pod:create(node(),"pod_adder_2"),
-    ok=container:create(PodAdder,"pod_adder_2",["adder_service"]),
+    ok=container:create(PodAdder,"pod_adder_2",[{"adder_service",[]}]),
    ok.
 
 adder_1_test()->
@@ -49,7 +54,7 @@ adder_1_test()->
     42=rpc:call(Pod,adder_service,add,[20,22]),
     ok.
 
-adder_2_test()->
+adder_2_test_xx()->
     Pod=misc_lib:get_node_by_id("pod_adder_2"),
     142=rpc:call(Pod,adder_service,add,[120,22]),
     ok.
@@ -57,14 +62,14 @@ adder_2_test()->
 stop_container_1_test()->
     Pod=misc_lib:get_node_by_id("pod_adder_1"),
     container:delete(Pod,"pod_adder_1",["adder_service"]),
-    timer:sleep(500),
+   % timer:sleep(500),
     {ok,stopped}=pod:delete(node(),"pod_adder_1"),
     ok.
 
-stop_container_2_test()->
+stop_container_2_test_Xxx()->
     Pod=misc_lib:get_node_by_id("pod_adder_2"),
     container:delete(Pod,"pod_adder_2",["adder_service"]),
-    timer:sleep(500),
+  %  timer:sleep(500),
     {ok,stopped}=pod:delete(node(),"pod_adder_2"),
     ok.
 

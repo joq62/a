@@ -29,12 +29,21 @@
 %% Returns: non
 %% --------------------------------------------------------------------
 start()->
-    {ok,Files2Keep}=file:consult(?CONFIG_FILE),
-    io:format("~p~n",[{?MODULE,?LINE,Files2Keep}]),
+    {ok,Info}=file:consult(?CONFIG_FILE),
+    {ipaddr,{Ip,Port}}=lists:keyfind(ipaddr,1,Info),
+    {keep,Files2Keep}=lists:keyfind(keep,1,Info),
+    {master,MasterIpArddrList}=lists:keyfind(master,1,Info),
+    clean_up(Files2Keep),
+    [PodId,_Host]=string:tokens(atom_to_list(node()),"@"),
+    file:make_dir(PodId),
+    ok=container:create(node(),PodId,[{"lib_service",[]},
+				      {"node_controller_service",
+				       [{ipaddr,{Ip,Port}},
+					{master,MasterIpArddrList}]}
+				     ]),
+
     
-    clean_up(Files2Keep).
-    
-    
+    ok.
 %% --------------------------------------------------------------------
 %% Function: 
 %% Description:
