@@ -1,0 +1,10 @@
+{specification, calculator}.
+{type,application}.
+{description, "Simple calculator for test purpose" }.
+{vsn, "1.0.0" }.
+{exported_services,["adder_service"]}.
+{service_def,[{"adder_service",[{josca,"adder_service.josca"},
+			     {num_instances,1},
+			     {num_processes,1},
+			     {nodes,any}]
+	       }]}.

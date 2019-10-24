@@ -53,7 +53,7 @@ start()->
     do_test(2).
 
 do_test(0)->
-    ListOfServices=["lib_service","node_controller_service"],
+  
   %  stop_service('board_m1@asus',"pod_node_controller_m1",ListOfServices),
   %  stop_service('board_m2@asus',"pod_node_controller_m2",ListOfServices),
   %  stop_service('board_w1@asus',"pod_node_controller_w1",ListOfServices),
