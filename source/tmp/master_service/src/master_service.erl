@@ -4,7 +4,7 @@
 %%%  
 %%% Created : 10 dec 2012
 %%% -------------------------------------------------------------------
--module(controller_service).
+-module(master_service). 
 
 -behaviour(gen_server).
 %% --------------------------------------------------------------------
@@ -43,6 +43,7 @@
 -export([get_nodes/0,
 	 create_pod/2,delete_pod/2,get_pods/0,
 	 create_container/3,delete_container/3,
+	 ip_addr/1,ip_addr/2,
 	 zone/0,zone/1,capability/1,
 	 wanted_state_nodes/0,wanted_state_services/0
 	]).
@@ -81,6 +82,14 @@ zone(Node)->
 
 capability(Capability)->
     gen_server:call(?MODULE,{capability,Capability},infinity).
+
+ip_addr(BoardId)->
+    gen_server:call(?MODULE,{ip_addr,BoardId},infinity).
+
+ip_addr(IpAddr,Port)->
+    gen_server:call(?MODULE,{ip_addr,IpAddr,Port},infinity).
+
+%%___________________________________________________________________
 get_nodes()->
     gen_server:call(?MODULE, {get_nodes},infinity).
 
@@ -113,12 +122,13 @@ delete_container(Pod,PodId,Service)->
 %
 %% --------------------------------------------------------------------
 init([]) ->
-    true=node_config:init(?NODES_CONFIG),
-    WantedStateNodes=node_config:wanted_state_nodes(?NODES_SIMPLE_CONFIG),
-    WantedStateServices=node_config:wanted_state_services(?JOSCA),
+    true=nodes_config:init(?NODES_CONFIG),
+  %  WantedStateNodes=node_config:wanted_state_nodes(?NODES_SIMPLE_CONFIG),
+  %  WantedStateServices=node_config:wanted_state_services(?JOSCA),
     io:format("Dbg ~p~n",[{?MODULE, application_started}]),
-    {ok, #state{wanted_state_nodes=WantedStateNodes,
-	       wanted_state_services=WantedStateServices}}.   
+    {ok, #state{}}.  
+%    {ok, #state{wanted_state_nodes=WantedStateNodes,
+%	       wanted_state_services=WantedStateServices}}.   
     
 %% --------------------------------------------------------------------
 %% Function: handle_call/3
@@ -130,6 +140,7 @@ init([]) ->
 %%          {stop, Reason, Reply, State}   | (terminate/2 is called)
 %%          {stop, Reason, State}            (aterminate/2 is called)
 %% --------------------------------------------------------------------
+
 handle_call({wanted_state_nodes}, _From, State) ->
     Reply=rpc:call(node(),node_config,wanted_state_nodes,[?NODES_SIMPLE_CONFIG]),
     Reply=State#state.wanted_state_nodes, 
@@ -140,16 +151,24 @@ handle_call({wanted_state_services}, _From, State) ->
     {reply, Reply, State};
 
 %---------------------------------------------------------------
+handle_call({ip_addr,BoardId}, _From, State) ->
+    Reply=rpc:call(node(),nodes_config,ip_addr,[BoardId],5000), 
+    {reply, Reply, State};
+
+handle_call({ip_addr,IpAddr,Port}, _From, State) ->
+    Reply=rpc:call(node(),nodes_config,ip_addr,[IpAddr,Port],5000), 
+    {reply, Reply, State};
+
 handle_call({zone}, _From, State) ->
-    Reply=rpc:call(node(),node_config,zone,[],5000), 
+    Reply=rpc:call(node(),nodes_config,zone,[],5000), 
     {reply, Reply, State};
 
 handle_call({zone,Node}, _From, State) ->
-    Reply=rpc:call(node(),node_config,zone,[atom_to_list(Node)],5000),
+    Reply=rpc:call(node(),nodes_config,zone,[atom_to_list(Node)],5000),
     {reply, Reply, State};
 
 handle_call({capability,Capability}, _From, State) ->
-    Reply=case rpc:call(node(),node_config,capability,[Capability],5000) of
+    Reply=case rpc:call(node(),nodes_config,capability,[Capability],5000) of
 	      []->
 		  {ok,[]};
 	      {ok,Capabilities}->

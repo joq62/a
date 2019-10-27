@@ -1,7 +1,7 @@
 %% Author: uabjle
 %% Created: 10 dec 2012
 %% Description: TODO: Add description to application_org
--module(controller_service_app).
+-module(master_service_app).
 
 -behaviour(application).
 %% --------------------------------------------------------------------
@@ -44,7 +44,7 @@
 %%          {error, Reason}
 %% --------------------------------------------------------------------
 start(_Type, _StartArgs) ->
-    {ok,Pid}= controller_service_sup:start(),
+    {ok,Pid}= master_service_sup:start(),
     {ok,Pid}.
 %% --------------------------------------------------------------------
 %% Func: stop/1
