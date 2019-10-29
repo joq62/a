@@ -1,25 +1,16 @@
 %%% -------------------------------------------------------------------
 %%% Author  : Joq Erlang
-%%% Description :iaas
-%%% Infrastructure controller
-%%% Main is task to keep track of availible nodes. I shall also keep
-%%% track on latency
-%%% The controller keeps information about availibility  
-%%% Input is which nodes that are expected to be presents and what 
-%%% characteristics they have
-%%% The controller polls each node every minute to check if it's present
-%%% An ets table is used to keep information   
+%%% Description : test application calc
+%%%  
 %%% Created : 10 dec 2012
 %%% -------------------------------------------------------------------
--module(iaas_service). 
+-module(master_service). 
 
 -behaviour(gen_server).
 %% --------------------------------------------------------------------
 %% Include files
 %% --------------------------------------------------------------------
--define(NODES_CONFIG,"nodes.config").
--define(JOSCA,"josca").
--define(POLL_INTERVAL,1*1000).
+
 
 %% --------------------------------------------------------------------
  
@@ -27,8 +18,13 @@
 %% Key Data structures
 %% 
 %% --------------------------------------------------------------------
--record(state,{active,inactive}).
+-record(state,{nodes,wanted_state_nodes,wanted_state_services}).
 
+-define(NODES_CONFIG,"nodes.config").
+-define(NODES_SIMPLE_CONFIG,"nodes_simple.config").
+-define(JOSCA,"josca").
+
+% {{service,Service},{pid,PidService},{node_board,NB},{node_service,NS}}
 
 	  
 %% --------------------------------------------------------------------
@@ -44,13 +40,12 @@
 	]).
 
 %% intermodule 
--export([get_nodes/0,get_pods/0,
+-export([get_nodes/0,
+	 create_pod/2,delete_pod/2,get_pods/0,
+	 create_container/3,delete_container/3,
 	 ip_addr/1,ip_addr/2,
 	 zone/0,zone/1,capability/1,
-	 get_all_nodes/0,
-	 active_boards/0,inactive_boards/0,
-	 check_boards/1
-%	 h_beat/1
+	 wanted_state_nodes/0,wanted_state_services/0
 	]).
 
 -export([start/0,
@@ -74,14 +69,10 @@ stop()-> gen_server:call(?MODULE, {stop},infinity).
 
 
 %%----------------------------------------------------------------------
-active_boards()->
-    gen_server:call(?MODULE,{active_boards},infinity).
-inactive_boards()->
-    gen_server:call(?MODULE,{inactive_boards},infinity).
-
-
-get_all_nodes()->
-    gen_server:call(?MODULE,{get_all_nodes},infinity).
+wanted_state_nodes()->
+    gen_server:call(?MODULE,{wanted_state_nodes},infinity).
+wanted_state_services()->
+    gen_server:call(?MODULE,{wanted_state_services},infinity).
 
 zone()->
     gen_server:call(?MODULE,{zone},infinity).
@@ -104,10 +95,18 @@ get_nodes()->
 
 get_pods()->
     gen_server:call(?MODULE, {get_pods},infinity).
+create_pod(Node,PodId)->
+    gen_server:call(?MODULE, {create_pod,Node,PodId},infinity).
+delete_pod(Node,PodId)->
+    gen_server:call(?MODULE, {delete_pod,Node,PodId},infinity).
+
+create_container(Pod,PodId,Service)->
+    gen_server:call(?MODULE, {create_container,Pod,PodId,Service},infinity).
+delete_container(Pod,PodId,Service)->
+    gen_server:call(?MODULE, {delete_container,Pod,PodId,Service},infinity).
 
 %%-----------------------------------------------------------------------
-check_boards(Interval)->
-    gen_server:cast(?MODULE,{check_boards,Interval}).
+
 
 %% ====================================================================
 %% Server functions
@@ -123,15 +122,13 @@ check_boards(Interval)->
 %
 %% --------------------------------------------------------------------
 init([]) ->
-    % Initiate ets table based on configurration file
     true=nodes_config:init(?NODES_CONFIG),
-    % Connect to all nodes - ensure that they are in dist erlang
-    
-    spawn(fun()->do_poll(?POLL_INTERVAL) end),
-  %  {{active,ActiveBoards},{inactive,InActive}}=iaas:active_boards(),
+  %  WantedStateNodes=node_config:wanted_state_nodes(?NODES_SIMPLE_CONFIG),
+  %  WantedStateServices=node_config:wanted_state_services(?JOSCA),
     io:format("Dbg ~p~n",[{?MODULE, application_started}]),
- %   {ok, #state{active=ActiveBoards,inactive=InActive}}.
-    {ok, #state{}}.
+    {ok, #state{}}.  
+%    {ok, #state{wanted_state_nodes=WantedStateNodes,
+%	       wanted_state_services=WantedStateServices}}.   
     
 %% --------------------------------------------------------------------
 %% Function: handle_call/3
@@ -144,21 +141,16 @@ init([]) ->
 %%          {stop, Reason, State}            (aterminate/2 is called)
 %% --------------------------------------------------------------------
 
+handle_call({wanted_state_nodes}, _From, State) ->
+    Reply=rpc:call(node(),node_config,wanted_state_nodes,[?NODES_SIMPLE_CONFIG]),
+    Reply=State#state.wanted_state_nodes, 
+    {reply, Reply, State};
+ 
+handle_call({wanted_state_services}, _From, State) ->
+    Reply=rpc:call(node(),node_config,wanted_state_services,[?JOSCA]), 
+    {reply, Reply, State};
 
 %---------------------------------------------------------------
-
-handle_call({active_boards}, _From, State) ->
-    Reply=State#state.active,
-    {reply, Reply, State};
-
-handle_call({inactive_boards}, _From, State) ->
-    Reply=State#state.inactive,
-    {reply, Reply, State};
-
-handle_call({get_all_nodes}, _From, State) ->
-    Reply=rpc:call(node(),nodes_config,get_all_nodes,[],5000), 
-    {reply, Reply, State};
-
 handle_call({ip_addr,BoardId}, _From, State) ->
     Reply=rpc:call(node(),nodes_config,ip_addr,[BoardId],5000), 
     {reply, Reply, State};
@@ -225,27 +217,6 @@ handle_call(Request, From, State) ->
 %%          {noreply, State, Timeout} |
 %%          {stop, Reason, State}            (terminate/2 is called)
 %% --------------------------------------------------------------------
-handle_cast({check_boards,Interval}, State) ->
-    % Ensure that newly started boards are connected and use ping to check if presents
-    {ok,AllBoardIds}=rpc:call(node(),nodes_config,get_all_nodes,[],5000),
-    PingResult=[{net_adm:ping(list_to_atom(BoardId)),BoardId}||BoardId<-AllBoardIds],
-    ActiveBoards=[BoardId||{pong,BoardId}<-PingResult],
-    InActive=[BoardId||{pang,BoardId}<-PingResult],
-    NewState=#state{active=ActiveBoards,inactive=InActive},
-    % Check 
-   % case rpc:call(node(),iaas,active_boards,[],5000) of
-%	{{active,ActiveBoards},{inactive,InActive}}->
-%	    NewState=#state{active=ActiveBoards,inactive=InActive},
-%	    {{active,ActiveBoards},{inactive,InActive}};
-%	{badrpc,Err}->
-%	    NewState=State,
-%	    {badrpc,Err};
-%	Err->
-%	    NewState=State,
-%	    {error,Err}
- %   end,
-    spawn(fun()->do_poll(Interval) end),
-    {noreply, NewState};
 
 handle_cast(Msg, State) ->
     io:format("unmatched match cast ~p~n",[{?MODULE,?LINE,Msg}]),
@@ -287,15 +258,7 @@ code_change(_OldVsn, State, _Extra) ->
 %% Description:
 %% Returns: non
 %% --------------------------------------------------------------------
-do_poll(Interval)->
-     timer:sleep(Interval),
-    iaas_service:check_boards(Interval),
- %   timer:sleep(Interval).
-    ok.
 
-    
-    
-    
 
 %% --------------------------------------------------------------------
 %% Internal functions
