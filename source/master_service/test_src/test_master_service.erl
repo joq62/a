@@ -96,7 +96,7 @@ apps_to_start_and_stop_1_test()->
     ok.
     
 start_app_test()->
-    WantedApps=[?TEST_APP_SPEC],
+    WantedApps=["test_app.spec"],
     ActiveApps=[],
     AppsToStart=[AppSpec||AppSpec<-WantedApps,
 			  false==lists:keymember(spec:read(specification,AppSpec),
@@ -109,60 +109,85 @@ start_app_test()->
     % 
     ok.
 node_app_test()->
-    WantedApps=[?TEST_APP_SPEC],
+    WantedApps=["test_app.spec","test_app_2.spec"],
+  %  WantedApps=["test_app.spec"],
     ActiveApps=[],
     %% Get apps to start
-    AppsToStart=[AppSpec||AppSpec<-WantedApps,
-			  false==lists:keymember(spec:read(specification,AppSpec),
-						 1,ActiveApps)],
-    %% Get Services, dependencies and needed  capabilities
-    %% Get services and their dependencies 
-    Specs=[{AppSpec,spec:read(instances,AppSpec),spec:read(localization,AppSpec),
-	    spec:read(service_def,AppSpec)}||AppSpec<-AppsToStart],
-    [{"test_app.spec",1,[],[{"t1_service","t1.spec"}]}]=Specs,
-    
-    R1=[{AppSpec,Num,Local,check_service_specs(ServiceSpec)}||{AppSpec,Num,Local,ServiceSpec}<-Specs],
-    ServicesSpecsDependencies=case [{error,AppSpec,Num,Node,ServiceList}||{AppSpec,Num,Node,{error,ServiceList}}<-R1] of
-				  []->
-				      R2=[{AppSpec,Num,Node,ServiceList}||{AppSpec,Num,Node,{ok,ServiceList}}<-R1],
-				      R2;
-				  Error->
-				      {error,Error}
-			      end,
-    
+    ServicesSpecsDependencies=get_services_dependendies(ActiveApps,WantedApps),
     [{"test_app.spec",1,[],
       [{"t1_service",[]},
        {"t4_service",[capa1]},
        {"t3_service",[capa2]},
-       {"t2_service",[capa2,capa1]}]}]=ServicesSpecsDependencies,
+       {"t2_service",[capa2,capa1]}]},
+     {"test_app_2.spec",1,
+      [board_w1@asus,board_m1@asus],
+      [{"t10_service",[]}]}]= ServicesSpecsDependencies,
     
     %check if there are needs forspecific capabilities
     
     %%% Get availible nodes and allocate 
     %%% 
     ANodes=[{'board_m1@asus',[capa1]},{node(),[]},{'board_w1@asus',[capa1,capa2]}],
-    Candidates=candidate_node(ServicesSpecsDependencies,ANodes,[]),			 
-    [{"t1_service",
-      [board_w1@asus,test_master_service@asus,board_m1@asus]},
-     {"t4_service",[board_m1@asus,board_w1@asus]},
-     {"t3_service",[board_w1@asus]},
-     {"t2_service",[board_w1@asus]}]=Candidates,
+    Candidates=get_candidates(ServicesSpecsDependencies,ANodes),			 
+    [{test_app,[{"t1_service",
+		 [board_w1@asus,test_master_service@asus,board_m1@asus]},
+		{"t4_service",[board_m1@asus,board_w1@asus]},
+		{"t3_service",[board_w1@asus]},
+		{"t2_service",[board_w1@asus]}]},
+     {test_app_2,[{"t10_service",[board_w1@asus,test_master_service@asus,
+				  board_m1@asus]}]}
+    ]=Candidates,
     
+%%% Check node contstrains and Choose nodes and buld start list
+    
+
     ok.
+
+
+
+
+
+
+
+
+    
+
+stop_test()->
+    master_service:stop(),
+    do_kill().
+do_kill()->
+    init:stop().
+
+%% --------------------------------------------------------------------
+%% Function:create_worker_node(Service,BoardNode)
+%% Description:
+%% Returns:{ok,PidService}|{error,Err}
+%% --------------------------------------------------------------------
+get_candidates(ServicesSpecsDependencies,ANodes)->
+    candidate_node(ServicesSpecsDependencies,ANodes,[]).
 
 candidate_node([],_,Candidates)->
     filter_candidates(Candidates,[]);
-candidate_node([{_AppSpec,_Num,_WantedNodes,ServiceList}|T],ANodes,Acc) ->
+candidate_node([{AppSpec,_Num,_WantedNodes,ServiceList}|T],ANodes,Acc) ->
     Cap=capabilities(ServiceList,ANodes,[]),
-    NewAcc=lists:append(Cap,Acc),
+    NewAcc=[{spec:read(specification,AppSpec),Cap}|Acc], %lists:append(Cap,Acc),
     candidate_node(T,ANodes,NewAcc).
 
 
 filter_candidates([],Filter)->
     Filter;
-filter_candidates([{ServiceId,[L1|LT]}|T],Acc) ->
-    NewAcc=[{ServiceId,check_in_all(L1,LT,[])}|Acc],
+filter_candidates([{App,ServiceList}|T],Acc) ->
+    NewAcc=[{App,filter_candidates_1(ServiceList,[])}|Acc],
     filter_candidates(T,NewAcc).
+    
+filter_candidates_1([],Candidates) ->
+    Candidates;
+filter_candidates_1([{ServiceId,[]}|T],Acc) ->
+    NewAcc=[{ServiceId,[]}|Acc],
+    filter_candidates_1(T,NewAcc);
+filter_candidates_1([{ServiceId,[L1|LT]}|T],Acc) ->
+    NewAcc=[{ServiceId,check_in_all(L1,LT,[])}|Acc],
+    filter_candidates_1(T,NewAcc).
 
 check_in_all([],_ListBoards,InAll)->
     InAll;
@@ -188,8 +213,6 @@ capabilities([{ServiceId,CapList}|T],ANodes,Acc) ->
 
 cap_member(_,[],Member)->
     Member;
-%cap_member(_,_,{true,Node,Cap})->
-%    {true,Node,Cap};
 cap_member(WCap,[{Node,CapList}|T],Acc) ->
     NewAcc=case lists:member(WCap,CapList) of
 	       false->
@@ -198,6 +221,31 @@ cap_member(WCap,[{Node,CapList}|T],Acc) ->
 		   [Node|Acc]
 	   end,
     cap_member(WCap,T,NewAcc).
+	
+%% --------------------------------------------------------------------
+%% Function:create_worker_node(Service,BoardNode)
+%% Description:
+%% Returns:{ok,PidService}|{error,Err}
+%% --------------------------------------------------------------------
+get_services_dependendies(ActiveApps,WantedApps)->
+    AppsToStart=[AppSpec||AppSpec<-WantedApps,
+			  false==lists:keymember(spec:read(specification,AppSpec),
+						 1,ActiveApps)],
+    %% Get Services, dependencies and needed  capabilities
+    %% Get services and their dependencies 
+    Specs=[{AppSpec,spec:read(instances,AppSpec),spec:read(localization,AppSpec),
+	    spec:read(service_def,AppSpec)}||AppSpec<-AppsToStart],
+ %   [{"test_app.spec",1,[],[{"t1_service","t1.spec"}]}]=Specs,
+    
+    R1=[{AppSpec,Num,Local,check_service_specs(ServiceSpec)}||{AppSpec,Num,Local,ServiceSpec}<-Specs],
+    ServicesSpecsDependencies=case [{error,AppSpec,Num,Node,ServiceList}||{AppSpec,Num,Node,{error,ServiceList}}<-R1] of
+				  []->
+				      R2=[{AppSpec,Num,Node,ServiceList}||{AppSpec,Num,Node,{ok,ServiceList}}<-R1],
+				      R2;
+				  Error->
+				      {error,Error}
+			      end,
+    ServicesSpecsDependencies.
 
 
 check_service_specs([])->
@@ -222,11 +270,3 @@ check_service_specs([{ServiceId,ServiceSpec}|T],Acc,_)->
 		   lists:append([L,List2,Acc])
 	   end,
     check_service_specs(T,NewAcc,ok).
-
-    
-
-stop_test()->
-    master_service:stop(),
-    do_kill().
-do_kill()->
-    init:stop().
