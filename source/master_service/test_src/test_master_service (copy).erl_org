@@ -41,9 +41,9 @@ spec_1_test()->
       {description,"Specification file for application template"},
       {vsn,"1.0.0"},
       {instances,1},
-      {localization,[]},
-      {service_def,[{"t1_service","t1.spec"}]}]}=spec:read(?TEST_APP_SPEC),
-    {ok,lib_service,
+      {localization,any},
+      {service_def,[{"lib_service","lib_service.spec"}]}]}=spec:read(?TEST_APP_SPEC),
+   {ok,lib_service,
     [{specification,lib_service},
      {type,service},
      {description,"Specification file for service"},
@@ -60,8 +60,8 @@ spec_2_test()->
     "Specification file for application template"=spec:read(description,?TEST_APP_SPEC),
     "1.0.0"=spec:read(vsn,?TEST_APP_SPEC),
     1=spec:read(instances,?TEST_APP_SPEC),
-    []=spec:read(localization,?TEST_APP_SPEC),
-    [{"t1_service","t1.spec"}]=spec:read(service_def,?TEST_APP_SPEC),  
+    any=spec:read(localization,?TEST_APP_SPEC),
+    [{"lib_service","lib_service.spec"}]=spec:read(service_def,?TEST_APP_SPEC),  
     ok.
     
 spec_3_test()->
@@ -109,7 +109,7 @@ start_app_test()->
     % 
     ok.
 node_app_test()->
-    WantedApps=[?TEST_APP_SPEC],
+    WantedApps=["node_app.spec"],
     ActiveApps=[],
     %% Get apps to start
     AppsToStart=[AppSpec||AppSpec<-WantedApps,
@@ -119,7 +119,8 @@ node_app_test()->
     %% Get services and their dependencies 
     Specs=[{AppSpec,spec:read(instances,AppSpec),spec:read(localization,AppSpec),
 	    spec:read(service_def,AppSpec)}||AppSpec<-AppsToStart],
-    [{"test_app.spec",1,[],[{"t1_service","t1.spec"}]}]=Specs,
+    [{"node_app.spec",1,['test_master_service@asus'],
+      [{"node_controller_service","node_controller_service.spec"}]}]=Specs,
     
     R1=[{AppSpec,Num,Local,check_service_specs(ServiceSpec)}||{AppSpec,Num,Local,ServiceSpec}<-Specs],
     ServicesSpecsDependencies=case [{error,AppSpec,Num,Node,ServiceList}||{AppSpec,Num,Node,{error,ServiceList}}<-R1] of
@@ -129,12 +130,10 @@ node_app_test()->
 				  Error->
 				      {error,Error}
 			      end,
-    
-    [{"test_app.spec",1,[],
-      [{"t1_service",[]},
-       {"t4_service",[capa1]},
-       {"t3_service",[capa2]},
-       {"t2_service",[capa2,capa1]}]}]=ServicesSpecsDependencies,
+    [{"node_app.spec",1,['test_master_service@asus'],
+	  [{"node_controller_service",[]},
+	   {"lib_service",[]}]}
+    ]=ServicesSpecsDependencies,
     
     %check if there are needs forspecific capabilities
     
@@ -142,62 +141,21 @@ node_app_test()->
     %%% 
     ANodes=[{'board_m1@asus',[capa1]},{node(),[]},{'board_w1@asus',[capa1,capa2]}],
     Candidates=candidate_node(ServicesSpecsDependencies,ANodes,[]),			 
-    [{"t1_service",
-      [board_w1@asus,test_master_service@asus,board_m1@asus]},
-     {"t4_service",[board_m1@asus,board_w1@asus]},
-     {"t3_service",[board_w1@asus]},
-     {"t2_service",[board_w1@asus]}]=Candidates,
-    
+    glurk=Candidates,
     ok.
 
 candidate_node([],_,Candidates)->
-    filter_candidates(Candidates,[]);
-candidate_node([{_AppSpec,_Num,_WantedNodes,ServiceList}|T],ANodes,Acc) ->
-    Cap=capabilities(ServiceList,ANodes,[]),
-    NewAcc=lists:append(Cap,Acc),
-    candidate_node(T,ANodes,NewAcc).
-
-
-filter_candidates([],Filter)->
-    Filter;
-filter_candidates([{ServiceId,[L1|LT]}|T],Acc) ->
-    NewAcc=[{ServiceId,check_in_all(L1,LT,[])}|Acc],
-    filter_candidates(T,NewAcc).
-
-check_in_all([],_ListBoards,InAll)->
-    InAll;
-check_in_all([Board|T],ListBoards,Acc)->
-    Test=[{false,Board}||SubList<-ListBoards,false==lists:member(Board,SubList)],
-    NewAcc=case Test of
-	       []-> %present in all 
-		   [Board|Acc];
-	       _NotInAll->
-		   Acc
-	   end,
-    check_in_all(T,ListBoards,NewAcc).
+    Candidates;
+candidate_node([AppSpec,Num,WantedNodes,ServiceList]|T,ANodes,Acc) ->
+    Cap=capabilities(WantedCap,Anodes,[]),
     
 capabilities([],_,Capabilities)->
     Capabilities;
-capabilities([{ServiceId,[]}|T],ANodes,Acc)->
-    NewAcc=[{ServiceId,[[Board||{Board,_}<-ANodes]]}|Acc],
-    capabilities(T,ANodes,NewAcc);
-capabilities([{ServiceId,CapList}|T],ANodes,Acc) ->
-    C1=[cap_member(WCap,ANodes,[])||WCap<-CapList],
-    NewAcc=[{ServiceId,C1}|Acc],
+capabilities([WCap|T],ANodes,Acc) ->
+    Cap=[{BoardId,WCap}||{BoardId,Capas}<-Anodes,lists:member(WCap,Capas)],
+    NewAcc=lists:append(Cap,Acc),
     capabilities(T,ANodes,NewAcc).
 
-cap_member(_,[],Member)->
-    Member;
-%cap_member(_,_,{true,Node,Cap})->
-%    {true,Node,Cap};
-cap_member(WCap,[{Node,CapList}|T],Acc) ->
-    NewAcc=case lists:member(WCap,CapList) of
-	       false->
-		   Acc;
-	       true->
-		   [Node|Acc]
-	   end,
-    cap_member(WCap,T,NewAcc).
 
 
 check_service_specs([])->
