@@ -129,21 +129,48 @@ node_app_test()->
     %%% 
     ANodes=[{'board_m1@asus',[capa1]},{node(),[]},{'board_w1@asus',[capa1,capa2]}],
     Candidates=get_candidates(ServicesSpecsDependencies,ANodes),			 
-    [{test_app,[{"t1_service",
-		 [board_w1@asus,test_master_service@asus,board_m1@asus]},
-		{"t4_service",[board_m1@asus,board_w1@asus]},
-		{"t3_service",[board_w1@asus]},
-		{"t2_service",[board_w1@asus]}]},
-     {test_app_2,[{"t10_service",[board_w1@asus,test_master_service@asus,
-				  board_m1@asus]}]}
-    ]=Candidates,
+   [{"test_app.spec",test_app,
+            [{"t1_service",
+              [board_w1@asus,test_master_service@asus,board_m1@asus]},
+             {"t4_service",[board_m1@asus,board_w1@asus]},
+             {"t3_service",[board_w1@asus]},
+             {"t2_service",[board_w1@asus]}]},
+    {"test_app_2.spec",test_app_2,
+     [{"t10_service",
+       [board_w1@asus,test_master_service@asus,board_m1@asus]}]}
+   ]=Candidates,
     
 %%% Check node contstrains and Choose nodes and buld start list
+    FilterConstrains=filter_constrains(Candidates,ServicesSpecsDependencies),
+    [{"test_app_2.spec",test_app_2,
+      [{"t10_service",[board_w1@asus,board_m1@asus]}]
+     },
+     {"test_app.spec",test_app,
+      [{"t2_service",[board_w1@asus]},
+       {"t3_service",[board_w1@asus]},
+       {"t4_service",[board_m1@asus,board_w1@asus]},
+       {"t1_service",[board_w1@asus,test_master_service@asus,board_m1@asus]}
+      ]
+     }
+    ]=FilterConstrains,
+    
+    % Build start list -> check if there are services that has no node availiable
+    [{error,"glurkSpec",glurk,[{g1,[]}]},
+     {ok,"test_app_2.spec",test_app_2,
+      [{"t10_service",[board_w1@asus,board_m1@asus]}]},
+     {ok,"test_app.spec",test_app,
+      [{"t2_service",[board_w1@asus]},
+       {"t3_service",[board_w1@asus]},
+       {"t4_service",[board_m1@asus,board_w1@asus]},
+       {"t1_service",[board_w1@asus,test_master_service@asus,board_m1@asus]}]}
+    ]=[{check_start_list(ServiceList,ok),AppSpec,App,ServiceList}||{AppSpec,App,ServiceList}<-[{"glurkSpec",glurk,[{g1,[]}]}|FilterConstrains]],
+    %% if Nodes =[] 
     
 
     ok.
 
 
+			
 
 
 
@@ -163,6 +190,55 @@ do_kill()->
 %% Description:
 %% Returns:{ok,PidService}|{error,Err}
 %% --------------------------------------------------------------------
+check_start_list([],R)->
+    R;
+check_start_list([{_ServiceId,[]}|_],_)->
+    check_start_list([],error);
+check_start_list([{_ServiceId,_L}|T],_) ->
+     check_start_list(T,ok).
+
+
+filter_constrains(Candidates,ServicesSpecsDependencies)->
+    filter_constrains(Candidates,ServicesSpecsDependencies,[]).
+
+filter_constrains([],_ServicesSpecsDependencies,FilterConstrains)->
+    FilterConstrains;
+filter_constrains([{AppSpec,App,CandidateList}|T],ServicesSpecsDependencies,Acc) ->
+   % glurk=lists:keyfind(AppSpec,1,ServicesSpecsDependencies),
+    NewServiceList=case lists:keyfind(AppSpec,1,ServicesSpecsDependencies) of
+		       false->
+			   {error,[no_entry,AppSpec,?MODULE,?LINE]};
+		       {AppSpec,_Num,ConstrainList,_NeededCapa}->
+			   do_filter(CandidateList,ConstrainList,[]);
+		       Err ->
+			   {error,[undefined_error,Err,?MODULE,?LINE]}
+		   end,
+    NewAcc=[{AppSpec,App,NewServiceList}|Acc],
+    filter_constrains(T,ServicesSpecsDependencies,NewAcc).
+			   
+
+do_filter([],_,Constrains)->
+    Constrains;
+do_filter([{ServiceId,BoardList}|T],[],Acc) -> % No constrains
+    NewAcc=[{ServiceId,BoardList}|Acc],
+    do_filter(T,[],NewAcc);
+do_filter([{ServiceId,BoardList}|T],Constrain,Acc) ->
+    Filtered=[Board||Board<-BoardList,
+		     lists:member(Board,Constrain)],
+ %   Filtered=[{lists:member(Board,Constrain),Board}||Board<-BoardList],
+    NewAcc=[{ServiceId,Filtered}|Acc],
+  %  glurk={ServiceId,BoardList,"+++",T},
+    do_filter(T,Constrain,NewAcc).
+		   
+	    
+
+
+
+%% --------------------------------------------------------------------
+%% Function:create_worker_node(Service,BoardNode)
+%% Description:
+%% Returns:{ok,PidService}|{error,Err}
+%% --------------------------------------------------------------------
 get_candidates(ServicesSpecsDependencies,ANodes)->
     candidate_node(ServicesSpecsDependencies,ANodes,[]).
 
@@ -170,14 +246,14 @@ candidate_node([],_,Candidates)->
     filter_candidates(Candidates,[]);
 candidate_node([{AppSpec,_Num,_WantedNodes,ServiceList}|T],ANodes,Acc) ->
     Cap=capabilities(ServiceList,ANodes,[]),
-    NewAcc=[{spec:read(specification,AppSpec),Cap}|Acc], %lists:append(Cap,Acc),
+    NewAcc=[{AppSpec,spec:read(specification,AppSpec),Cap}|Acc], %lists:append(Cap,Acc),
     candidate_node(T,ANodes,NewAcc).
 
 
 filter_candidates([],Filter)->
     Filter;
-filter_candidates([{App,ServiceList}|T],Acc) ->
-    NewAcc=[{App,filter_candidates_1(ServiceList,[])}|Acc],
+filter_candidates([{AppSpec,App,ServiceList}|T],Acc) ->
+    NewAcc=[{AppSpec,App,filter_candidates_1(ServiceList,[])}|Acc],
     filter_candidates(T,NewAcc).
     
 filter_candidates_1([],Candidates) ->
