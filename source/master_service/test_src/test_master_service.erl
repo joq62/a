@@ -38,7 +38,7 @@ init_test()->
     _Pods=[pod:create(node(),PodId)||PodId<-?POD_ID],
     
     {ok,_Pid}=master_service:start(),
-    undefined=iaas_service:active_machines(),
+    ["machine_w2@asus","machine_w3@asus","machine_w1@asus"]=iaas_service:active_machines(),
     ok.
 
 %----- node config --------------------------------------------------------
@@ -49,11 +49,10 @@ orch_1_test()->
     %    ok=master_service:load_chart(["test_app.spec"]),
     WantedApps=["test_app.spec"],
     StartedApps=[],
-    [{"test_app.spec",1,[],
-      [{"t1_service",[]},
-       {"t4_service",[capa1]},
-       {"t3_service",[capa2]},
-       {"t2_service",[capa2,capa1]}]}]=master:orchistrate(WantedApps,StartedApps),
+    [{"machine_w2@asus",[]},
+     {"machine_w3@asus",[drone]},
+     {"machine_w3@asus",[disk]},
+     {"machine_w1@asus",[]}]=master:orchistrate(WantedApps,StartedApps),
     ok.
     
 
@@ -99,8 +98,12 @@ iaas_t1_test()->
     ok.
 
 iaas_t2_test()->
-    glurk=iaas_service:machine_capabilities(glurk@asus),
-    glurk=iaas_service:machine_capabilities(machine_w2@asus),
+    {error,[eexits,glurk@asus,iaas_service,_]}=iaas_service:machine_capabilities(glurk@asus),
+    {ok,[{"machine_w2@asus",[]}]}=iaas_service:machine_capabilities(machine_w2@asus),
+    {ok,[{"machine_w3@asus",[drone]},
+	 {"machine_w3@asus",[disk]}]}=iaas_service:machine_capabilities(machine_w3@asus),
+    {ok,[{"machine_m1@asus",[disk]},
+	 {"machine_m1@asus",[tellstick]}]}=iaas_service:machine_capabilities(machine_m1@asus),
     ok.
 
 iaas_machines_2_test()->

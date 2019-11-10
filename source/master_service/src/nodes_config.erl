@@ -122,13 +122,12 @@ capability(Capability)->
 	   end,
     Result.
 
-machine_capabilities(Machine)->
-    MachineId=atom_to_list(Machine),
-    Result=case ets:match(?NODES_ETS,{{cap,'$1',MachineId},'_','_'}) of
+machine_capabilities(MachineId)->
+    Result=case  ets:match(?NODES_ETS,{{cap,'_',MachineId},'$1','$2'})of
 	       []->
-		   {error,[eexist,MachineId,?MODULE,?LINE]};
+		   {ok,[{MachineId,[]}]};
 	       EtsResult->
-		   A=[{Caps,MId}||[Caps,MId]<-EtsResult],
+		   A=[{MId,[Caps]}||[Caps,MId]<-EtsResult],
 		   {ok,A}
 	   end,
     Result.

@@ -42,17 +42,34 @@
 %% Description:
 %% Returns:{ok,PidService}|{error,Err}
 %% --------------------------------------------------------------------
+check_machines()->
+    {ok,AllMachineIds}=rpc:call(node(),nodes_config,get_all_nodes,[],5000),
+    PingResult=[{net_adm:ping(list_to_atom(MachineId)),MachineId}||MachineId<-AllMachineIds],
+    ActiveMachines=[MachineId||{pong,MachineId}<-PingResult],
+    InActiveMachines=[MachineId||{pang,MachineId}<-PingResult],
+    {ActiveMachines,InActiveMachines}.
+
+%% --------------------------------------------------------------------
+%% Function:create_worker_node(Service,MachineNode)
+%% Description:
+%% Returns:{ok,PidService}|{error,Err}
+%% --------------------------------------------------------------------
 orchistrate(WantedApps,StartedApps)->
     ServicesSpecsDependencies=master:get_services_dependendies(StartedApps,WantedApps),
     ActiveMachines=iaas_service:active_machines(),
-    
+    A1=[iaas_service:machine_capabilities(list_to_atom(MachineId))||MachineId<-ActiveMachines],
+    A11=[L||{ok,L}<-A1],
+    MachinesCapa=lists:append(A11),
+    Result=MachinesCapa,
+  %  Candidates=master:get_candidates(ServicesSpecsDependencies,MachinesCapa),
+  %  Result=Candidates,
     %check if there are needs for specific capabilities
     
     %%% Get availible nodes and allocate 
     %%% 
     %ANodes=[{'board_m1@asus',[capa1]},{node(),[]},{'board_w1@asus',[capa1,capa2]}],
   %  Candidates=master:get_candidates(ServicesSpecsDependencies,ANodes),	
-    ServicesSpecsDependencies.
+    Result.
 
 
 %get_services_dependendies(ActiveApps,WantedApps)->
@@ -73,7 +90,7 @@ orchistrate(WantedApps,StartedApps)->
   %  StartList.
 
 %% --------------------------------------------------------------------
-%% Function:create_worker_node(Service,BoardNode)
+%% Function:create_worker_node(Service,MachineNode)
 %% Description:
 %% Returns:{ok,PidService}|{error,Err}
 %% --------------------------------------------------------------------

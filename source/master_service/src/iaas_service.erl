@@ -129,12 +129,12 @@ init([]) ->
     % Initiate ets table based on configurration file
     true=nodes_config:init(?NODES_CONFIG),
     % Connect to all nodes - ensure that they are in dist erlang
-    
+    {ActiveMachines,InActiveMachines}=rpc:call(node(),master,check_machines,[]),
     spawn(fun()->do_poll(?POLL_INTERVAL) end),
   %  {{active,ActiveMachine},{inactive,InActive}}=iaas:active_machine(),
     io:format("Dbg ~p~n",[{?MODULE, application_started}]),
- %   {ok, #state{active=ActiveMachine,inactive=InActive}}.
-    {ok, #state{}}.
+    {ok, #state{active=ActiveMachines,inactive=InActiveMachines}}.
+%    {ok, #state{}}.
     
 %% --------------------------------------------------------------------
 %% Function: handle_call/3
@@ -160,7 +160,14 @@ handle_call({inactive_machines}, _From, State) ->
 
 
 handle_call({machine_capabilities,Machine},_From, State) ->
-    Reply=rpc:call(node(),nodes_config,machine_capabilities,[Machine],5000), 
+    MachineId=atom_to_list(Machine),
+    {ok,AllNodes}=rpc:call(node(),nodes_config,get_all_nodes,[],5000),
+    Reply=case lists:member(MachineId,AllNodes) of
+	      false->
+		  {error,[eexits,Machine,?MODULE,?LINE]};
+	      true->
+		  rpc:call(node(),nodes_config,machine_capabilities,[MachineId],5000)
+	  end,
     {reply, Reply, State};
 
 handle_call({get_all_nodes}, _From, State) ->
@@ -239,7 +246,8 @@ handle_cast({check_machines,Interval}, _State) ->
     PingResult=[{net_adm:ping(list_to_atom(BoardId)),BoardId}||BoardId<-AllBoardIds],
     ActiveMachine=[BoardId||{pong,BoardId}<-PingResult],
     InActive=[BoardId||{pang,BoardId}<-PingResult],
-    NewState=#state{active=ActiveMachine,inactive=InActive},
+    {ActiveMachines,InActiveMachines}=rpc:call(node(),master,check_machines,[]),
+    NewState=#state{active=ActiveMachines,inactive=InActiveMachines},
     % Check 
    % case rpc:call(node(),iaas,active_machine,[],5000) of
 %	{{active,ActiveMachine},{inactive,InActive}}->
