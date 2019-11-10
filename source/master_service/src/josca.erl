@@ -4,7 +4,7 @@
 %%%
 %%% Created : 10 dec 2012
 %%% -------------------------------------------------------------------
--module(nodes_config).
+-module(josca).
   
 
 
@@ -13,16 +13,15 @@
 %% --------------------------------------------------------------------
 
 %% --------------------------------------------------------------------
--define(NODES_ETS,node_config_ets).
+-define(JOSCA_ETS,josca_ets).
 %% External exports
 
 
 -export([init/1,delete/0,
+	 wanted_state_nodes/1,wanted_state_services/1,
 	 create_ets_list/2,
 	 ip_addr/1,ip_addr/2,
-	 zone/0,zone/1,capability/1,
-	 get_all_nodes/0,
-	 machine_capabilities/1
+	 zone/0,zone/1,capability/1
 	]).
 
 
@@ -34,6 +33,38 @@
 %% Description:
 %% Returns: non
 %% --------------------------------------------------------------------
+
+wanted_state_nodes(ConfigFile)->
+    Result = case file:consult(ConfigFile) of
+		 {ok,I}->
+		     [{NodeStr,list_to_atom(NodeStr)}||NodeStr<-I];
+		 {error,Err}->
+		     {error,[Err,ConfigFile,?MODULE,?LINE]}
+	     end,
+    Result.
+
+wanted_state_services(JoscaDir)->
+    
+    Result = case file:list_dir(JoscaDir) of
+		 {ok,Files}->
+		     read_josca(Files,JoscaDir,[]);
+		 {error,Err}->
+		     {error,[Err,JoscaDir,?MODULE,?LINE]}
+	     end,
+    Result.
+
+read_josca([],_JoscaDir,WantedStateServices)->
+    WantedStateServices;
+read_josca([File|T],JoscaDir,Acc)->
+    {ok,I}=file:consult(filename:join(JoscaDir,File)),
+ %   {application_id,AppId}=lists:keyfind(application_id,1,I),
+ %   {vsn,Vsn}=lists:keyfind(vsn,1,I),
+    {services,ServiceSpecs}=lists:keyfind(services,1,I),
+    ServiceList=[{Service,Num,NodeStr}||{{service,Service},{num_instances,Num},{node_str,NodeStr}}<-ServiceSpecs],
+    NewAcc=lists:append(ServiceList,Acc),
+    read_josca(T,JoscaDir,NewAcc).
+    
+    
 
 %% --------------------------------------------------------------------
 %% Function: 
@@ -48,8 +79,8 @@ init(ConfigFile)->
 			 {badrpc,Err}->
 			      {error,[badrpc,Err,create_ets_list,I,?MODULE,?LINE]};
 			 EtsList->
-			     ?NODES_ETS=ets:new(?NODES_ETS, [set, named_table]),
-			     rpc:call(node(),ets,insert,[?NODES_ETS,EtsList])
+			     ets:new(?JOSCA_ETS, [set, named_table]),
+			     rpc:call(node(),ets,insert,[?JOSCA_ETS,EtsList])
 		     end;
 		 {error,Err}->
 		     {error,[badrpc,Err,create_ets_listfile_consult,ConfigFile,?MODULE,?LINE]}
@@ -58,42 +89,21 @@ init(ConfigFile)->
 
 
 delete()->
-    ets:delete(?NODES_ETS).
+    ets:delete(?JOSCA_ETS).
 
 create_ets_list([],EtsList)->
     EtsList;
                 
 create_ets_list([{{node_id,N},{ip_addr,IpAddr,Port},{zone,Z},{capabilities,C},{status,S}}|T],Acc)->
     IpAddress_Port=[{{ip_addr,N},N,{IpAddr,Port}}],
-    Caps=[{{cap,Cap,N},Cap,N}||Cap<-C],
+    Caps=[{{Cap,N},Cap,N}||Cap<-C],
     Zone=[{{zone,N},Z,N}],
-    Status=[{{status,S,N},S,N}],
+    Status=[{{S,N},S,N}],
     NewAcc=lists:append([Caps,Zone,IpAddress_Port,Status,Acc]),
     create_ets_list(T,NewAcc).
 
-
-get_all_nodes()->
-     Result=case ets:match(?NODES_ETS,{{status,'_','_'},'$2','$1'}) of
-	       []->
-		   {error,[no_nodes,?MODULE,?LINE]};
-	       Nodes->
-		   A=[Node||[Node,_Status]<-Nodes],
-		   {ok,A}
-	   end,
-    Result.
-
-status(_Node)->
-    ok.
-
-status_active()->
-    ok.
-status_inactive()->
-    ok.
-set_status(_Node,_NewStatus)->
-    ok.
-
 zone()->
-    Result=case ets:match(?NODES_ETS,{{zone,'$1'},'$2','_'}) of
+    Result=case ets:match(?JOSCA_ETS,{{zone,'$1'},'$2','_'}) of
 	       []->
 		   {error,[no_zones,?MODULE,?LINE]};
 	       Zones->
@@ -103,7 +113,7 @@ zone()->
     Result.
 	       
 zone(NodeStr)->
-    Result=case ets:match(?NODES_ETS,{{zone,NodeStr},'$2','_'}) of
+    Result=case ets:match(?JOSCA_ETS,{{zone,NodeStr},'$2','_'}) of
 	       []->
 		   {error,[no_zones,?MODULE,?LINE]};
 	       [[Zone]]->
@@ -111,9 +121,8 @@ zone(NodeStr)->
 	   end,
     Result.
 
-   
 capability(Capability)->
-    Result=case  ets:match(?NODES_ETS,{{cap,Capability,'$1'},'$2','_'}) of
+    Result=case  ets:match(?JOSCA_ETS,{{Capability,'$1'},'$2','_'}) of
 	       []->
 		   {ok,[]};
 	       EtsResult->
@@ -121,20 +130,8 @@ capability(Capability)->
 		   {ok,A}
 	   end,
     Result.
-
-machine_capabilities(Machine)->
-    MachineId=atom_to_list(Machine),
-    Result=case ets:match(?NODES_ETS,{{cap,'$1',MachineId},'_','_'}) of
-	       []->
-		   {error,[eexist,MachineId,?MODULE,?LINE]};
-	       EtsResult->
-		   A=[{Caps,MId}||[Caps,MId]<-EtsResult],
-		   {ok,A}
-	   end,
-    Result.
-
 ip_addr(BoardId)->
-    Result=case ets:match(?NODES_ETS,{{ip_addr,BoardId},'_',{'$3','$4'}}) of
+    Result=case ets:match(?JOSCA_ETS,{{ip_addr,BoardId},'_',{'$3','$4'}}) of
 	       []->
 		   {error,[eexist,BoardId,?MODULE,?LINE]};
 	       EtsResult->
@@ -143,7 +140,7 @@ ip_addr(BoardId)->
 	   end,
     Result.
 ip_addr(IpAddr,Port)->
-    Result=case ets:match(?NODES_ETS,{{ip_addr,'_'},'$1',{IpAddr,Port}}) of
+    Result=case ets:match(?JOSCA_ETS,{{ip_addr,'_'},'$1',{IpAddr,Port}}) of
 	       []->
 		   {error,[eexists,IpAddr,Port,?MODULE,?LINE]};
 	       EtsResult->

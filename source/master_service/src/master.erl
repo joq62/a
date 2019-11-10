@@ -26,33 +26,51 @@
 
 
 %% intermodule 
--export([get_nodes/0,
+-export([orchistrate/2,
+	 get_nodes/0,
 	 create_pod/2, delete_pod/2,get_pods/0,
 	 create_container/3,delete_container/3
 	]).
 %% External exports
 
-%-compile(export_all).
+-compile(export_all).
 %% ====================================================================
 %% External functions
 %% ===================================================================
-
-get_services_dependendies(ActiveApps,WantedApps)->
-    ServicesSpecsDependencies=glurk,
+%% --------------------------------------------------------------------
+%% Function:create_worker_node(Service,BoardNode)
+%% Description:
+%% Returns:{ok,PidService}|{error,Err}
+%% --------------------------------------------------------------------
+orchistrate(WantedApps,StartedApps)->
+    ServicesSpecsDependencies=master:get_services_dependendies(StartedApps,WantedApps),
+    ActiveMachines=iaas_service:active_machines(),
+    
+    %check if there are needs for specific capabilities
+    
+    %%% Get availible nodes and allocate 
+    %%% 
+    %ANodes=[{'board_m1@asus',[capa1]},{node(),[]},{'board_w1@asus',[capa1,capa2]}],
+  %  Candidates=master:get_candidates(ServicesSpecsDependencies,ANodes),	
     ServicesSpecsDependencies.
 
+
+%get_services_dependendies(ActiveApps,WantedApps)->
+ %   ServicesSpecsDependencies=glurk,
+  %  ServicesSpecsDependencies.
+
 % ANodes=[{'board_m1@asus',[capa1]},{node(),[]},{'board_w1@asus',[capa1,capa2]}],
-get_candidates(ServicesSpecsDependencies,ANodes)->		
-    Candidates=glurk,
-     Candidates.
+%get_candidates(ServicesSpecsDependencies,ANodes)->		
+ %   Candidates=glurk,
+  %   Candidates.
 
-filter_constrains(Candidates,ServicesSpecsDependencies)->
-    FilterConstrains=glurk,    
-    FilterConstrains.
+%filter_constrains(Candidates,ServicesSpecsDependencies)->
+ %   FilterConstrains=glurk,    
+  %  FilterConstrains.
 
-start_list(FilterConstrains)->
-    StartList=[{check_start_list(ServiceList,ok),AppSpec,App,ServiceList}||{AppSpec,App,ServiceList}<-[{"glurkSpec",glurk,[{g1,[]}]}|FilterConstrains]],
-    StartList.
+%start_list(FilterConstrains)->
+ %   StartList=[{check_start_list(ServiceList,ok),AppSpec,App,ServiceList}||{AppSpec,App,ServiceList}<-[{"glurkSpec",glurk,[{g1,[]}]}|FilterConstrains]],
+  %  StartList.
 
 %% --------------------------------------------------------------------
 %% Function:create_worker_node(Service,BoardNode)
