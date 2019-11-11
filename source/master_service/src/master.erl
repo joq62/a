@@ -59,16 +59,11 @@ orchistrate(WantedApps,StartedApps)->
     ActiveMachines=iaas_service:active_machines(),
     A1=[iaas_service:machine_capabilities(list_to_atom(MachineId))||MachineId<-ActiveMachines],
     A11=[L||{ok,L}<-A1],
+ %   Result=A11,
     MachinesCapa=lists:append(A11),
-    Result=MachinesCapa,
-  %  Candidates=master:get_candidates(ServicesSpecsDependencies,MachinesCapa),
-  %  Result=Candidates,
-    %check if there are needs for specific capabilities
-    
-    %%% Get availible nodes and allocate 
-    %%% 
-    %ANodes=[{'board_m1@asus',[capa1]},{node(),[]},{'board_w1@asus',[capa1,capa2]}],
-  %  Candidates=master:get_candidates(ServicesSpecsDependencies,ANodes),	
+%    Result=MachinesCapa,
+    Candidates=master:get_candidates(ServicesSpecsDependencies,MachinesCapa),	
+    Result=Candidates,
     Result.
 
 

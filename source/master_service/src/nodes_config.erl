@@ -127,8 +127,8 @@ machine_capabilities(MachineId)->
 	       []->
 		   {ok,[{MachineId,[]}]};
 	       EtsResult->
-		   A=[{MId,[Caps]}||[Caps,MId]<-EtsResult],
-		   {ok,A}
+		   A=[Caps||[Caps,MId]<-EtsResult],
+		   {ok,[{MachineId,A}]}
 	   end,
     Result.
 

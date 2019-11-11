@@ -3,5 +3,5 @@
 {description, "Specification file for service" }.
 {vsn, "1.0.0" }.
 {exported_service,"t2_service"}.
-{needed_capabilities,[capa2,capa1]}.
+{needed_capabilities,[disk,drone]}.
 {dependencies ,[]}.

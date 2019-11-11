@@ -49,12 +49,14 @@ orch_1_test()->
     %    ok=master_service:load_chart(["test_app.spec"]),
     WantedApps=["test_app.spec"],
     StartedApps=[],
-    [{"machine_w2@asus",[]},
-     {"machine_w3@asus",[drone]},
-     {"machine_w3@asus",[disk]},
-     {"machine_w1@asus",[]}]=master:orchistrate(WantedApps,StartedApps),
+    [{"test_app.spec",test_app,
+      [{"t1_service",
+	["machine_w1@asus","machine_w3@asus","machine_w2@asus"]},
+       {"t4_service",[]},
+       {"t3_service",["machine_w3@asus"]},
+       {"t2_service",["machine_w3@asus"]}]}]=master:orchistrate(WantedApps,StartedApps),
     ok.
-    
+
 
 % ----- master_service test  tests---------------------------------------------
 master_t1_test()->
@@ -100,10 +102,10 @@ iaas_t1_test()->
 iaas_t2_test()->
     {error,[eexits,glurk@asus,iaas_service,_]}=iaas_service:machine_capabilities(glurk@asus),
     {ok,[{"machine_w2@asus",[]}]}=iaas_service:machine_capabilities(machine_w2@asus),
-    {ok,[{"machine_w3@asus",[drone]},
-	 {"machine_w3@asus",[disk]}]}=iaas_service:machine_capabilities(machine_w3@asus),
-    {ok,[{"machine_m1@asus",[disk]},
-	 {"machine_m1@asus",[tellstick]}]}=iaas_service:machine_capabilities(machine_m1@asus),
+    {ok,[{"machine_w3@asus",L1}]}=iaas_service:machine_capabilities(machine_w3@asus),
+    {true,true}={lists:member(disk,L1),lists:member(drone,L1)},
+    {ok,[{"machine_m1@asus",L2}]}=iaas_service:machine_capabilities(machine_m1@asus),
+    {true,true}={lists:member(disk,L2),lists:member(tellstick,L2)},
     ok.
 
 iaas_machines_2_test()->
@@ -194,9 +196,9 @@ node_app_test()->
     ServicesSpecsDependencies=master:get_services_dependendies(ActiveApps,WantedApps),
     [{"test_app.spec",1,[],
       [{"t1_service",[]},
-       {"t4_service",[capa1]},
-       {"t3_service",[capa2]},
-       {"t2_service",[capa2,capa1]}]},
+       {"t4_service",[tellstick]},
+       {"t3_service",[drone]}, 
+       {"t2_service",[disk,drone]}]},
      {"test_app_2.spec",1,
       [board_w1@asus,board_m1@asus],
       [{"t10_service",[]}]}]= ServicesSpecsDependencies,
@@ -207,41 +209,39 @@ node_app_test()->
     %%% 
     ANodes=[{'board_m1@asus',[capa1]},{node(),[]},{'board_w1@asus',[capa1,capa2]}],
     Candidates=master:get_candidates(ServicesSpecsDependencies,ANodes),			 
-   [{"test_app.spec",test_app,
-            [{"t1_service",
-              [board_w1@asus,test_master_service@asus,board_m1@asus]},
-             {"t4_service",[board_m1@asus,board_w1@asus]},
-             {"t3_service",[board_w1@asus]},
-             {"t2_service",[board_w1@asus]}]},
-    {"test_app_2.spec",test_app_2,
-     [{"t10_service",
-       [board_w1@asus,test_master_service@asus,board_m1@asus]}]}
-   ]=Candidates,
+    [{"test_app.spec",test_app,
+      [{"t1_service",
+	[board_w1@asus,test_master_service@asus,board_m1@asus]},
+       {"t4_service",[]},
+       {"t3_service",[]},
+       {"t2_service",[]}]},
+     {"test_app_2.spec",test_app_2,
+      [{"t10_service",
+	[board_w1@asus,test_master_service@asus,board_m1@asus]}]
+     }]=Candidates,
     
 %%% Check node contstrains and Choose nodes and buld start list
     FilterConstrains=master:filter_constrains(Candidates,ServicesSpecsDependencies),
-    [{"test_app_2.spec",test_app_2,
-      [{"t10_service",[board_w1@asus,board_m1@asus]}]
-     },
-     {"test_app.spec",test_app,
-      [{"t2_service",[board_w1@asus]},
-       {"t3_service",[board_w1@asus]},
-       {"t4_service",[board_m1@asus,board_w1@asus]},
-       {"t1_service",[board_w1@asus,test_master_service@asus,board_m1@asus]}
-      ]
-     }
-    ]=FilterConstrains,
+[{"test_app_2.spec",test_app_2,
+  [{"t10_service",[board_w1@asus,board_m1@asus]}]},
+ {"test_app.spec",test_app,
+  [{"t2_service",[]},
+   {"t3_service",[]},
+   {"t4_service",[]},
+   {"t1_service",
+    [board_w1@asus,test_master_service@asus,board_m1@asus]}]}]=FilterConstrains,
     
     % Build start list -> check if there are services that has no node availiable
-    [{error,"glurkSpec",glurk,[{g1,[]}]},
-     {ok,"test_app_2.spec",test_app_2,
-      [{"t10_service",[board_w1@asus,board_m1@asus]}]},
-     {ok,"test_app.spec",test_app,
-      [{"t2_service",[board_w1@asus]},
-       {"t3_service",[board_w1@asus]},
-       {"t4_service",[board_m1@asus,board_w1@asus]},
-       {"t1_service",[board_w1@asus,test_master_service@asus,board_m1@asus]}]}
-    ]=[{master:check_start_list(ServiceList,ok),AppSpec,App,ServiceList}||{AppSpec,App,ServiceList}<-[{"glurkSpec",glurk,[{g1,[]}]}|FilterConstrains]],
+[{error,"glurkSpec",glurk,[{g1,[]}]},
+ {ok,"test_app_2.spec",test_app_2,
+  [{"t10_service",[board_w1@asus,board_m1@asus]}]},
+ {error,"test_app.spec",test_app,
+  [{"t2_service",[]},
+   {"t3_service",[]},
+   {"t4_service",[]},
+   {"t1_service", 
+    [board_w1@asus,test_master_service@asus,
+     board_m1@asus]}]}]=[{master:check_start_list(ServiceList,ok),AppSpec,App,ServiceList}||{AppSpec,App,ServiceList}<-[{"glurkSpec",glurk,[{g1,[]}]}|FilterConstrains]],
     %% if Nodes =[] 
     
 
